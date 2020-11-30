@@ -1,10 +1,23 @@
 import numpy as np
 import scipy.io.wavfile as sio
 from scipy.signal import resample
-import matplotlib.pyplot as plt
 
 def load(filename, Lpeak):
-    
+    """
+    Solve the cochlear model in time domain
+
+    Parameters
+    ----------
+    filename : string
+        Wav file name 
+    Lpeak : float
+        Sound pressure level in input signal
+
+    Returns:
+    --------
+    signal : ndarray
+        Generated input signal for the cochlear model
+    """
     fs_model = 200e3
     fs, data = sio.read(filename)
 

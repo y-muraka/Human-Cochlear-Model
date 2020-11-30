@@ -4,7 +4,83 @@ import tqdm
 import wavfile
 
 class CochlearModel:
+    """
+    Two-dimensional cochlear model with two-degree-of-freedom
+    (2DOF) micro-structure [1] for human. This program employs 
+    time domain solution proposed in Ref. [2], and for fast calcuration,
+    applies non-unifomrom grid setting [3].
+
+    Ref.
+    [1] Neely S and Kim D, "A model for active elements in cochlear biomechanics,"
+    The Journal of the Acoustical Society of America, 79(5), 1472--1480, 1986.
+    [2] Diependaal, R.J et al, "Numerical methods for solving one-dimensional
+    cochlear models in the time domain, " The Journal of the Acoustical Society of 
+    America, 82 (5), 1655--1666, 1987
+    [3] Murakami, Y "Efficiency limit of nonuniform grid setting in two-dimensional
+    cochlear model" Acoustical Science and Technology, 40 (5), 336--343, 2019. 
+    
+    Attributes
+    ----------
+    Nx : int
+        Number of segments for x-axis
+    Ny : int
+        Number of segments for y-axis
+    Lb : float
+        Cochlear length [cm]
+    W : float
+        Witdh of basilar membrane (BM) [cm]
+    H : float
+        Height of BM [cm]
+    b : float
+        ratio of BM to CP displacement
+    rho : float
+        Fluid density [dyn cm^-3]
+    dx : float
+        Spacing between two segments for x-axis [cm]
+    dy : float
+        Spacing between two segments for y-axis [cm]
+    x : ndarray
+        Longitudial poisition from the stapes [cm]
+    y : ndarray
+        Poisition from the BM [cm]
+    k1 : ndarray
+        Compliance of BM [dyn cm^-3]
+    m1 : ndarray
+        Mass of BM [g cm^-2]
+    c1 : ndarray 
+        Resistance of BM [dyn s cm^-3]
+    k2 : ndarray
+        Compliance of tectrial membrane (TM) [dyn cm^-3]
+    m2 : ndarray
+        Mass of TM [g cm^-2]
+    c2 : ndarray
+        Resistance of TM [dyn s cm^-3]
+    k3 : ndarray
+        Compliance of connection between BM and TM [dyn cm^-3]
+    c3 : ndarray
+        Resistance of connection between BM and TM [dyn s cm^-3]
+    k4 : ndarray
+        Compliance of outer hair cell's (OHC's) activity [dyn cm^-3]
+    c4 : ndarray
+        Resistance of outer hair cell's (OHC's) activity [dyn s cm^-3]
+    gamma : ndarray
+        Gain factor distribution 
+    dt : float
+        Time step for time domain simulation [sec]
+    beta : float
+        Complete saturating point in OHC's active process [cm]
+    """
     def __init__(self, Nx, Ny, gamma):
+        """
+        Parameters
+        ----------
+        Nx : int
+            Number of segment for x-axis
+        Ny : int
+            Number of segment for y-axis
+        gamma : ndarray
+            Gain factor distribution
+        """
         self.Nx = Nx
         self.Ny = Ny
         self.Lb = 3.5
@@ -14,11 +90,19 @@ class CochlearModel:
         self.b = 0.4
         self.rho = 1.0
         self.dx = self.Lb/self.Nx
-        self.dy = self.H/(self.Ny-1)
         self.x = np.arange(0,self.Lb,self.dx)
-        self.y = np.linspace(0,self.H,self.Ny)
+        
+        By = 100
+        ry = 100
+        m = np.linspace(0,1,Ny)
+        Bdy = np.exp(By)
+        Ay = (ry-1)*By/((ry-1)*(Bdy-1)+By*(Bdy-1))
+        Cy = 1-Ay/By*Bdy+Ay/By
+        Dy = -Ay/By
+        self.y = (Ay/By*np.exp(By*m) + Cy*m + Dy)*self.H
+        self.dy = self.y[1:]-self.y[0:-1]
 
-        ch_damp = 2
+        ch_damp = 2.8 * np.exp(-0.2 * self.x)
         
         self.k1 = 2.2e8*np.exp(-3*self.x)
         self.m1 = 3e-3
@@ -36,8 +120,6 @@ class CochlearModel:
         self.c2c3 = self.c2 + self.c3
         self.k2k3 = self.k2 + self.k3
 
-        self.g = 1
-        self.b = 0.4
         self.gamma = gamma
 
         self.dt = 10e-6
@@ -66,7 +148,24 @@ class CochlearModel:
         return gb, gt
 
     def solve_time_domain(self, f):
+        """
+        Solve the cochlear model in time domain
 
+        Parameters
+        ----------
+        f : ndarray
+            Input signal [cm s^-2]
+
+        Returns:
+        --------
+        vb : ndarray
+            Basilar membrane (BM) velocity [cm s^-1]
+        ub : ndarray
+            Basilar membrane (BM) displacement [cm]
+        p : ndarray
+            Pressure difference between two chambers [barye]
+            (1 [barye]= 0.1 [Pa])
+        """
         Ntime = int(round(f.size/2))
         T = Ntime * self.dt
 
@@ -83,15 +182,22 @@ class CochlearModel:
         p = np.zeros((Ntime,Nx))
 
         Ay = np.zeros((Ny,Ny))
-        Ay[0,0] = -2 - alpha2*self.dy**2
-        Ay[0,1] = 2 
-        for nn in range(1,Ny-1):
-            Ay[nn,nn-1] = 1
-            Ay[nn,nn] = -2
-            Ay[nn,nn+1] = 1
-        Ay[Ny-1,Ny-2] = 2 
-        Ay[Ny-1,Ny-1] = -2 
-        Ay /= self.dy**2
+
+        Ay[0,0] = -2/self.dy[0]**2 - alpha2[0]
+        Ay[0,1] = 2/self.dy[0]**2
+
+        aym = np.zeros(Ny)
+        bym = np.zeros(Ny)
+        aym[1:-1] = self.dy[1:]/self.dy[:-1]
+        bym[1:-1] = 2/self.dy[1:]/self.dy[:-1]/(1+aym[1:-1])
+
+        for m in range(1,Ny-1):
+            Ay[m,m-1] = bym[m]*aym[m]
+            Ay[m,m] = -bym[m]*(1+aym[m])
+            Ay[m,m+1] = bym[m]
+
+        Ay[Ny-1,Ny-2] = 2/self.dy[-1]**2
+        Ay[Ny-1,Ny-1] = -2/self.dy[-1]**2
 
         Iy = np.eye(Ny)
         F = np.zeros((Nx*Ny,Nx*Ny))
@@ -114,7 +220,7 @@ class CochlearModel:
             gb, gt = self.get_g(vb[ii], ub[ii], vt[ii], ut[ii])
 
             k = np.zeros(Nx*Ny)
-            k[::Ny] -= alpha2*gb
+            k[::Ny] -= alpha2[0]*gb
             k[:Ny] -= f[ii*2] * 2/self.dx
             
             #(iii)
@@ -133,7 +239,7 @@ class CochlearModel:
             gb, gt = self.get_g(vb1, ub1, vt1, ut1) 
 
             k = np.zeros(Nx*Ny)
-            k[::Ny] -= alpha2*gb
+            k[::Ny] -= alpha2[0]*gb
             k[:Ny] -= f[ii*2+1] * 2/self.dx
 
             #(iii)
@@ -152,7 +258,7 @@ class CochlearModel:
             gb, gt = self.get_g(vb2, ub2, vt2, ut2)
 
             k = np.zeros(Nx*Ny)
-            k[::Ny] -= alpha2*gb
+            k[::Ny] -= alpha2[0]*gb
             k[:Ny] -= f[ii*2+1] * 2/self.dx
 
             #(iii)
@@ -171,7 +277,7 @@ class CochlearModel:
             gb, gt = self.get_g(vb3, ub3, vt3, ut3)
             
             k = np.zeros(Nx*Ny)
-            k[::Ny] -= alpha2*gb
+            k[::Ny] -= alpha2[0]*gb
             k[:Ny] -= f[ii*2+2] * 2/self.dx
 
             #(iii)
@@ -189,14 +295,18 @@ class CochlearModel:
 
         return vb, ub, p
 
+"""
+A demonstration plots envelopes of basilar membrane (BM) velocity
+for 0.25, 1 and 4 kHz tones varied 0 to 100 dB with 20 dB step.
+""" 
 if __name__ == "__main__":
     Nx = 300
-    Ny = 10 
-    g = 0.7
+    Ny = 4
+    g = 0.8
 
     gamma = np.ones(Nx)*g
 
-    cm = CochlearModel(Nx, Ny, gamma)
+    cm = CochlearModel(Nx, Ny, gamma) # Initial setup
 
     Lps = np.arange(0,120,20)
 
@@ -205,9 +315,9 @@ if __name__ == "__main__":
         plt.figure()
         for Lp in Lps:
             print("%dHz %ddB"%(fp, Lp))
-            sinewave = wavfile.load(filename, Lp)
+            sinewave = wavfile.load(filename, Lp) # Loading input signal
 
-            vb, ub, p = cm.solve_time_domain( sinewave )
+            vb, ub, p = cm.solve_time_domain( sinewave ) # Solve
 
             plt.plot(cm.x*10, 20*np.log10(np.max(np.abs(vb[int(round(vb.shape[0]*9/10)):]), axis=0)*10))
         plt.xlabel('Distance from the stapes [mm]')
