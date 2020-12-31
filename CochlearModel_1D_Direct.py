@@ -4,10 +4,76 @@ import tqdm
 import wavfile
 
 class CochlearModel:
+    """
+    One-dimensional cochlear model with two-degree-of-freedom
+    (2DOF) micro-structure [1] for human. This program employs 
+    time domain solution proposed in Ref. [2].
+
+    Ref.
+    [1] Neely S and Kim D, "A model for active elements in cochlear biomechanics,"
+    The Journal of the Acoustical Society of America, 79(5), 1472--1480, 1986.
+    [2] Diependaal, R.J et al, "Numerical methods for solving one-dimensional
+    cochlear models in the time domain, " The Journal of the Acoustical Society of 
+    America, 82 (5), 1655--1666, 1987
+    
+    Attributes
+    ----------
+    N : int
+        Number of segments
+    Lb : float
+        Cochlear length [cm]
+    W : float
+        Witdh of basilar membrane (BM) [cm]
+    H : float
+        Height of BM [cm]
+    b : float
+        ratio of BM to CP displacement
+    rho : float
+        Fluid density [dyn cm^-3]
+    dx : float
+        Spacing between two segments [cm]
+    x : ndarray
+        Longitudial poisition from the stapes [cm]
+    k1 : ndarray
+        Compliance of BM [dyn cm^-3]
+    m1 : ndarray
+        Mass of BM [g cm^-2]
+    c1 : ndarray 
+        Resistance of BM [dyn s cm^-3]
+    k2 : ndarray
+        Compliance of tectrial membrane (TM) [dyn cm^-3]
+    m2 : ndarray
+        Mass of TM [g cm^-2]
+    c2 : ndarray
+        Resistance of TM [dyn s cm^-3]
+    k3 : ndarray
+        Compliance of connection between BM and TM [dyn cm^-3]
+    c3 : ndarray
+        Resistance of connection between BM and TM [dyn s cm^-3]
+    k4 : ndarray
+        Compliance of outer hair cell's (OHC's) activity [dyn cm^-3]
+    c4 : ndarray
+        Resistance of outer hair cell's (OHC's) activity [dyn s cm^-3]
+    gamma : ndarray
+        Gain factor distribution 
+    dt : float
+        Time step for time domain simulation [sec]
+    beta : float
+        Complete saturating point in OHC's active process [cm]
+    """
+
     def __init__(self, Nx, gamma):
+        """
+        Parameters
+        ----------
+        Nx : int
+            Number of segment
+        gamma : ndarray
+            Gain factor distribution
+        """
+
         self.N = Nx
         self.Lb = 3.5
-        self.L = 0.1
         self.W = 0.1
         self.H = 0.1
         self.b = 0.4
@@ -15,7 +81,7 @@ class CochlearModel:
         self.dx = self.Lb/self.N
         self.x = np.arange(0,self.Lb,self.dx)
 
-        ch_damp = 2.8*np.exp(-0.1*self.x)
+        ch_damp = 2.8*np.exp(-0.2*self.x)
         
         self.k1 = 2.2e8*np.exp(-3*self.x)
         self.m1 = 3e-3
@@ -33,8 +99,6 @@ class CochlearModel:
         self.c2c3 = self.c2 + self.c3
         self.k2k3 = self.k2 + self.k3
 
-        self.g = 1
-        self.b = 0.4
         self.gamma = gamma
 
         self.dt = 10e-6
@@ -63,7 +127,24 @@ class CochlearModel:
         return gb, gt
 
     def solve_time_domain(self, f):
+        """
+        Solve the cochlear model in time domain
 
+        Parameters
+        ----------
+        f : ndarray
+            Input signal [cm s^-2]
+
+        Returns:
+        --------
+        vb : ndarray
+            Basilar membrane (BM) velocity [cm s^-1]
+        ub : ndarray
+            Basilar membrane (BM) displacement [cm]
+        p : ndarray
+            Pressure difference between two chambers [barye]
+            (1 [barye]= 0.1 [Pa])
+        """
         Ntime = int(round(f.size/2))
         T = Ntime * self.dt
 
@@ -170,13 +251,17 @@ class CochlearModel:
 
         return vb, ub, p
 
+"""
+A demonstration plots envelopes of basilar membrane (BM) velocity
+for 0.25, 1 and 4 kHz tones varied 0 to 100 dB with 20 dB step.
+""" 
 if __name__ == "__main__":
     Nx = 300
     g = 1
 
     gamma = np.ones(Nx)*g
 
-    cm = CochlearModel(Nx, gamma)
+    cm = CochlearModel(Nx, gamma) # Initial setup
 
     Lps = np.arange(0,120,20)
 
@@ -185,9 +270,9 @@ if __name__ == "__main__":
         plt.figure()
         for Lp in Lps:
             print("%dHz %ddB"%(fp, Lp))
-            sinewave = wavfile.load(filename, Lp)
+            sinewave = wavfile.load(filename, Lp) # Loading input signal
 
-            vb, ub, p = cm.solve_time_domain( sinewave )
+            vb, ub, p = cm.solve_time_domain( sinewave ) # Solve
 
             plt.plot(cm.x*10, 20*np.log10(np.max(np.abs(vb[int(round(vb.shape[0]*9/10)):]), axis=0)*10))
         plt.xlabel('Distance from the stapes [mm]')
