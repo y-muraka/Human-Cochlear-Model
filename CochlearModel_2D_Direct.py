@@ -92,14 +92,10 @@ class CochlearModel:
         self.dx = self.Lb/self.Nx
         self.x = np.arange(0,self.Lb,self.dx)
         
-        By = 100
-        ry = 100
+        By = 1e-3
+        Ay = -1/self.H*np.log10(By)
         m = np.linspace(0,1,Ny)
-        Bdy = np.exp(By)
-        Ay = (ry-1)*By/((ry-1)*(Bdy-1)+By*(Bdy-1))
-        Cy = 1-Ay/By*Bdy+Ay/By
-        Dy = -Ay/By
-        self.y = (Ay/By*np.exp(By*m) + Cy*m + Dy)*self.H
+        self.y = -1/Ay*np.log10(1-m*(1-By))
         self.dy = self.y[1:]-self.y[0:-1]
 
         ch_damp = 2.8 * np.exp(-0.2 * self.x)
@@ -301,16 +297,16 @@ for 0.25, 1 and 4 kHz tones varied 0 to 100 dB with 20 dB step.
 """ 
 if __name__ == "__main__":
     Nx = 300
-    Ny = 4
+    Ny = 10
     g = 0.8
 
     gamma = np.ones(Nx)*g
 
     cm = CochlearModel(Nx, Ny, gamma) # Initial setup
 
-    Lps = np.arange(0,120,20)
+    Lps = [0] #np.arange(0,120,20)
 
-    for fp in [250, 1000, 4000]:
+    for fp in [1000]:
         filename = '%gHz.wav'%(fp)
         plt.figure()
         for Lp in Lps:

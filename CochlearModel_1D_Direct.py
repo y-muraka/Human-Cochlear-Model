@@ -256,7 +256,7 @@ A demonstration plots envelopes of basilar membrane (BM) velocity
 for 0.25, 1 and 4 kHz tones varied 0 to 100 dB with 20 dB step.
 """ 
 if __name__ == "__main__":
-    Nx = 300
+    Nx = 512
     g = 1
 
     gamma = np.ones(Nx)*g
