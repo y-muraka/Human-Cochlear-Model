@@ -1,8 +1,9 @@
 #include <vector>
 #include <fstream>
 #include <cmath>
-#include <cblas.h>
+//#include <cblas.h>
 #include <fftw3.h>
+//#include<Accelerate/Accelerate.h>
 #include <sys/time.h>
 #include <time.h>
 

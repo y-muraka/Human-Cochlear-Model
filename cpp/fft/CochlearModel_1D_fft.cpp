@@ -1,10 +1,9 @@
 #include "CochlearModel_1D_fft.h"
 
 using namespace std;
-// namespace py = pybind11;
 
-extern "C" int dgetrf_(int *m, int *n, double *a, int * lda, int *ipiv, int *info);
-extern "C" int dgetri_(int *n, double *a, int *lda, int	*ipiv, double *work, int *lwork, int *info);
+//extern "C" int dgetrf_(int *m, int *n, double *a, int * lda, int *ipiv, int *info);
+//extern "C" int dgetri_(int *n, double *a, int *lda, int	*ipiv, double *work, int *lwork, int *info);
 
 
 void save_datfile(string filename, vector<vector<double> > data)
@@ -44,6 +43,7 @@ vector<double> mat_to_mat1d(vector<vector<double> > mat)
     return mat1d;
 }
 
+/*
 vector<double> inv(vector<double> mat1d_input)
 {
     vector<double> mat1d_output = mat1d_input;
@@ -77,7 +77,9 @@ void matvec_mul(vector<double> mat1d_in, vector<double> vec_in, vector<double>& 
 
     cblas_dgemv(CblasRowMajor, CblasNoTrans, dim, dim, alpha, mat1d_in.data(), dim, vec_in.data(), 1, beta, vec_out.data(), 1);
 }
+*/
 
+/*
 vector<double> CochlearModel_1D::Gohc(vector<double> uc)
 {
     vector<double> output(N);
@@ -88,7 +90,9 @@ vector<double> CochlearModel_1D::Gohc(vector<double> uc)
 
     return output;
 }
+*/
 
+/*
 vector<double> CochlearModel_1D::dGohc(vector<double> uc, vector<double> vc)
 {
     vector<double> output(N);
@@ -100,12 +104,14 @@ vector<double> CochlearModel_1D::dGohc(vector<double> uc, vector<double> vc)
     return output;
 
 }
+*/
 
 void CochlearModel_1D::get_g(vector<double> vb, vector<double> ub, vector<double> vt, vector<double> ut, vector<double>& gb, vector<double>& gt)
 {
     double uc_lin, vc_lin;
 
     for (int ii=0; ii < N; ii++){
+        
         gb[ii] = c1c3[ii]*vb[ii] + k1k3[ii]*ub[ii] - c3[ii]*vt[ii] - k3[ii]*ut[ii];
         gt[ii] = -c3[ii]*vb[ii] - k3[ii]*ub[ii] + c2c3[ii]*vt[ii] + k2k3[ii]*ut[ii];
         uc_lin = ub[ii] - ut[ii];
@@ -126,8 +132,8 @@ void CochlearModel_1D::solve_time_domain(vector<double> vec_f, vector<vector<dou
     double deltaT;
     double dx2 = pow(dx, 2.0);
 
-    fftw_init_threads();
-    fftw_plan_with_nthreads(1);
+    //fftw_init_threads();
+    //fftw_plan_with_nthreads(1);
 
     vector<double> vec_gb(N);
     vector<double> vec_gt(N);
@@ -155,11 +161,11 @@ void CochlearModel_1D::solve_time_domain(vector<double> vec_f, vector<vector<dou
         vec_mwx[kx-1] = 4*(sin(ax)*sin(ax))/dx2;
     }
 
-    plan_forward = fftw_plan_r2r_1d(N, vec_k.data(), vec_khat.data(), FFTW_REDFT10, FFTW_ESTIMATE);
-    plan1_inverse = fftw_plan_r2r_1d(N, vec_phat.data(), vec_p1.data(), FFTW_REDFT01, FFTW_ESTIMATE);
-    plan2_inverse = fftw_plan_r2r_1d(N, vec_phat.data(), vec_p2.data(), FFTW_REDFT01, FFTW_ESTIMATE);
-    plan3_inverse = fftw_plan_r2r_1d(N, vec_phat.data(), vec_p3.data(), FFTW_REDFT01, FFTW_ESTIMATE);
-    plan4_inverse = fftw_plan_r2r_1d(N, vec_phat.data(), vec_p4.data(), FFTW_REDFT01, FFTW_ESTIMATE);
+    plan_forward = fftw_plan_r2r_1d(N, vec_k.data(), vec_khat.data(), FFTW_REDFT10, FFTW_EXHAUSTIVE);
+    plan1_inverse = fftw_plan_r2r_1d(N, vec_phat.data(), vec_p1.data(), FFTW_REDFT01, FFTW_EXHAUSTIVE);
+    plan2_inverse = fftw_plan_r2r_1d(N, vec_phat.data(), vec_p2.data(), FFTW_REDFT01, FFTW_EXHAUSTIVE);
+    plan3_inverse = fftw_plan_r2r_1d(N, vec_phat.data(), vec_p3.data(), FFTW_REDFT01, FFTW_EXHAUSTIVE);
+    plan4_inverse = fftw_plan_r2r_1d(N, vec_phat.data(), vec_p4.data(), FFTW_REDFT01, FFTW_EXHAUSTIVE);
 
     gettimeofday(&tv_start, NULL);
 
@@ -283,7 +289,7 @@ void CochlearModel_1D::solve_time_domain(vector<double> vec_f, vector<vector<dou
     printf("Duration of stimulation: %f [sec] \n", num_time*dt);
     printf("Elapsed time: %f [sec] \n", deltaT);
 
-    fftw_cleanup_threads();
+    //fftw_cleanup_threads();
 }
 
 vector<double> get_f(double fp, int num_time)
@@ -302,7 +308,7 @@ vector<double> get_f(double fp, int num_time)
 
 int main(void)
 {
-    openblas_set_num_threads(16);
+//    openblas_set_num_threads(16);
     int num_segment = 512;
     int num_time = 10000;
     int num_time2 = num_time * 2;
